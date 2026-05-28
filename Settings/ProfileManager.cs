@@ -12,8 +12,8 @@ namespace WaystoneNotify
         public string Name                       { get; set; } = "Default";
         public DateTime LastSaved                { get; set; } = DateTime.UtcNow;
         public Dictionary<string, bool> Mods     { get; set; } = new();
-        public Dictionary<string, bool> Bricked  { get; set; } = new();
-        public Dictionary<string, bool> Good     { get; set; } = new();
+        public Dictionary<string, int> BrickLevels { get; set; } = new();
+        public Dictionary<string, int> GoodLevels  { get; set; } = new();
         public Dictionary<string, string> CustomNames { get; set; } = new();
     }
 
@@ -69,8 +69,8 @@ namespace WaystoneNotify
             p.Name        = name;
             p.LastSaved   = DateTime.UtcNow;
             p.Mods        = new Dictionary<string, bool>(s.EnabledMods);
-            p.Bricked     = new Dictionary<string, bool>(s.BrickedMods);
-            p.Good        = new Dictionary<string, bool>(s.GoodMods);
+            p.BrickLevels = new Dictionary<string, int>(s.BrickLevels);
+            p.GoodLevels  = new Dictionary<string, int>(s.GoodLevels);
             p.CustomNames = new Dictionary<string, string>(s.CustomModNames);
             Profiles[name] = p;
             Save();
@@ -80,8 +80,8 @@ namespace WaystoneNotify
         {
             if (!Profiles.TryGetValue(name, out var p)) return false;
             s.EnabledMods    = new Dictionary<string, bool>(p.Mods);
-            s.BrickedMods    = new Dictionary<string, bool>(p.Bricked ?? new());
-            s.GoodMods       = new Dictionary<string, bool>(p.Good    ?? new());
+            s.BrickLevels    = new Dictionary<string, int>(p.BrickLevels ?? new());
+            s.GoodLevels     = new Dictionary<string, int>(p.GoodLevels  ?? new());
             s.CustomModNames = new Dictionary<string, string>(p.CustomNames ?? new());
             return true;
         }

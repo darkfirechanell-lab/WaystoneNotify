@@ -92,13 +92,16 @@ namespace WaystoneNotify
 
                         if (ActiveWarnings.Any(w => w.Text == display)) continue;
 
-                        bool isBricked = LiveSettings.BrickedMods.TryGetValue(entry.ModType, out var br) && br;
-                        bool isGood    = !isBricked && LiveSettings.GoodMods != null
-                                         && LiveSettings.GoodMods.TryGetValue(entry.ModType, out var gd) && gd;
+                        int brickLvl = LiveSettings.BrickLevels.TryGetValue(entry.ModType, out var br) ? br : 0;
+                        int goodLvl  = brickLvl == 0 && LiveSettings.GoodLevels != null
+                                       && LiveSettings.GoodLevels.TryGetValue(entry.ModType, out var gd) ? gd : 0;
+                        bool isBricked = brickLvl > 0;
                         if (isBricked) Bricked = true;
 
                         var s = LiveSettings;
-                        var color = isBricked ? s.Bricked : isGood ? s.GoodModBorder : s.MapBorderWarnings;
+                        var color = isBricked ? s.BrickColor(brickLvl)
+                                  : goodLvl > 0 ? s.GoodColor(goodLvl)
+                                  : s.MapBorderWarnings;
 
                         ActiveWarnings.Add(new StyledText { Text = display, Color = color, Bricking = isBricked });
                     }

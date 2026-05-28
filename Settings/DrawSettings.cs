@@ -77,53 +77,31 @@ namespace WaystoneNotify
             }
         }
 
-        private static bool BrickPill(string id, bool bricked)
+        // Renders 4 tiny tier buttons (1-4); returns the new level (0 = none). Clicking the active tier clears it.
+        private static int LevelButtons(string id, int current, System.Func<int, nuVector4> colorOf)
         {
-            if (bricked)
+            int result = current;
+            for (int n = 1; n <= 4; n++)
             {
-                ImGui.PushStyleColor(ImGuiCol.Button,        new nuVector4(0.55f, 0.08f, 0.08f, 1f));
-                ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new nuVector4(0.70f, 0.12f, 0.12f, 1f));
-                ImGui.PushStyleColor(ImGuiCol.ButtonActive,  new nuVector4(0.40f, 0.06f, 0.06f, 1f));
-                ImGui.PushStyleColor(ImGuiCol.Text,          new nuVector4(1.00f, 0.60f, 0.60f, 1f));
+                var col = colorOf(n);
+                bool active = current == n;
+                var bg = active ? col : new nuVector4(col.X * 0.30f, col.Y * 0.30f, col.Z * 0.30f, 1f);
+                ImGui.PushStyleColor(ImGuiCol.Button,        bg);
+                ImGui.PushStyleColor(ImGuiCol.ButtonHovered, col);
+                ImGui.PushStyleColor(ImGuiCol.ButtonActive,  col);
+                ImGui.PushStyleColor(ImGuiCol.Text,          new nuVector4(0f, 0f, 0f, 1f));
+                if (ImGui.SmallButton($"{n}##{id}{n}")) result = active ? 0 : n;
+                ImGui.PopStyleColor(4);
+                if (n < 4) ImGui.SameLine();
             }
-            else
-            {
-                ImGui.PushStyleColor(ImGuiCol.Button,        new nuVector4(0.14f, 0.14f, 0.18f, 1f));
-                ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new nuVector4(0.22f, 0.22f, 0.28f, 1f));
-                ImGui.PushStyleColor(ImGuiCol.ButtonActive,  new nuVector4(0.10f, 0.10f, 0.14f, 1f));
-                ImGui.PushStyleColor(ImGuiCol.Text,          new nuVector4(0.35f, 0.35f, 0.40f, 1f));
-            }
-            bool clicked = ImGui.SmallButton(bricked ? "BRICK##" + id : "brick##" + id);
-            ImGui.PopStyleColor(4);
-            return clicked ? !bricked : bricked;
-        }
-
-        private static bool GoodPill(string id, bool good)
-        {
-            if (good)
-            {
-                ImGui.PushStyleColor(ImGuiCol.Button,        new nuVector4(0.05f, 0.35f, 0.55f, 1f));
-                ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new nuVector4(0.08f, 0.48f, 0.72f, 1f));
-                ImGui.PushStyleColor(ImGuiCol.ButtonActive,  new nuVector4(0.03f, 0.25f, 0.40f, 1f));
-                ImGui.PushStyleColor(ImGuiCol.Text,          new nuVector4(0.50f, 0.85f, 1.00f, 1f));
-            }
-            else
-            {
-                ImGui.PushStyleColor(ImGuiCol.Button,        new nuVector4(0.14f, 0.14f, 0.18f, 1f));
-                ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new nuVector4(0.22f, 0.22f, 0.28f, 1f));
-                ImGui.PushStyleColor(ImGuiCol.ButtonActive,  new nuVector4(0.10f, 0.10f, 0.14f, 1f));
-                ImGui.PushStyleColor(ImGuiCol.Text,          new nuVector4(0.35f, 0.35f, 0.40f, 1f));
-            }
-            bool clicked = ImGui.SmallButton(good ? "GOOD##" + id : "good##" + id);
-            ImGui.PopStyleColor(4);
-            return clicked ? !good : good;
+            return result;
         }
 
         public override void DrawSettings()
         {
             int warnCount  = Settings.EnabledMods.Count(kv => kv.Value);
-            int brickCount = Settings.BrickedMods.Count(kv => kv.Value);
-            int goodCount  = Settings.GoodMods.Count(kv => kv.Value);
+            int brickCount = Settings.BrickLevels.Count(kv => kv.Value > 0);
+            int goodCount  = Settings.GoodLevels.Count(kv => kv.Value > 0);
             ImGui.TextDisabled($"{warnCount} warnings   {brickCount} bricked   {goodCount} good   |   {Settings.ActiveProfile.Value}");
             ImGui.Separator();
 
@@ -183,39 +161,41 @@ namespace WaystoneNotify
                 foreach (var entry in group)
                 {
                     bool isEnabled = Settings.EnabledMods.TryGetValue(entry.ModType, out var en) && en;
-                    bool isBricked = isEnabled && Settings.BrickedMods.TryGetValue(entry.ModType, out var br) && br;
-                    bool isGood    = isEnabled && Settings.GoodMods.TryGetValue(entry.ModType, out var gd) && gd;
+                    int brickLvl = isEnabled && Settings.BrickLevels.TryGetValue(entry.ModType, out var bl) ? bl : 0;
+                    int goodLvl  = isEnabled && Settings.GoodLevels.TryGetValue(entry.ModType, out var gl) ? gl : 0;
+                    bool isBricked = brickLvl > 0;
+                    bool isGood    = goodLvl > 0;
 
-                    if (isBricked)      ImGui.PushStyleColor(ImGuiCol.Header, new nuVector4(0.45f, 0.06f, 0.06f, 0.5f));
-                    else if (isGood)    ImGui.PushStyleColor(ImGuiCol.Header, new nuVector4(0.05f, 0.25f, 0.45f, 0.5f));
+                    if (isBricked)      { var c = Settings.BrickColor(brickLvl); ImGui.PushStyleColor(ImGuiCol.Header, new nuVector4(c.X * 0.5f, c.Y * 0.5f, c.Z * 0.5f, 0.5f)); }
+                    else if (isGood)    { var c = Settings.GoodColor(goodLvl);   ImGui.PushStyleColor(ImGuiCol.Header, new nuVector4(c.X * 0.5f, c.Y * 0.5f, c.Z * 0.5f, 0.5f)); }
                     else if (isEnabled) ImGui.PushStyleColor(ImGuiCol.Header, new nuVector4(0.45f, 0.18f, 0.06f, 0.35f));
 
                     float lineH = ImGui.GetTextLineHeight();
                     float rowH  = lineH * 2f + 8f;
                     float availW = ImGui.GetContentRegionAvail().X;
-                    float selectW = isEnabled ? availW - 110f : availW;
+                    float selectW = isEnabled ? Math.Max(60f, availW - 250f) : availW;
 
                     ImGui.SetNextItemAllowOverlap();
-                    bool rowClicked = ImGui.Selectable($"##sel_{entry.ModType}", isEnabled || isBricked || isGood,
+                    bool rowClicked = ImGui.Selectable($"##sel_{entry.ModType}", isEnabled,
                         ImGuiSelectableFlags.DontClosePopups, new nuVector2(selectW, rowH));
 
-                    if (isBricked || isGood || isEnabled) ImGui.PopStyleColor();
+                    if (isEnabled) ImGui.PopStyleColor();
 
                     if (rowClicked)
                     {
                         if (isEnabled)
                         {
                             Settings.EnabledMods[entry.ModType] = false;
-                            Settings.BrickedMods.Remove(entry.ModType);
-                            Settings.GoodMods.Remove(entry.ModType);
+                            Settings.BrickLevels.Remove(entry.ModType);
+                            Settings.GoodLevels.Remove(entry.ModType);
                         }
                         else Settings.EnabledMods[entry.ModType] = true;
                     }
 
                     var selMin = ImGui.GetItemRectMin();
                     var dl = ImGui.GetWindowDrawList();
-                    var nameCol = isBricked ? new nuVector4(1f, 0.50f, 0.50f, 1f)
-                        : isGood ? new nuVector4(0.50f, 0.85f, 1.00f, 1f)
+                    var nameCol = isBricked ? Settings.BrickColor(brickLvl)
+                        : isGood ? Settings.GoodColor(goodLvl)
                         : isEnabled ? new nuVector4(0.90f, 0.90f, 0.90f, 1f)
                         : new nuVector4(0.65f, 0.65f, 0.68f, 1f);
                     dl.AddText(selMin + new nuVector2(4f, 3f), ImGui.GetColorU32(nameCol), entry.Name);
@@ -226,18 +206,21 @@ namespace WaystoneNotify
                     if (isEnabled)
                     {
                         ImGui.SameLine();
-                        bool newBrick = BrickPill(entry.ModType, isBricked);
-                        if (newBrick != isBricked)
+                        ImGui.AlignTextToFramePadding();
+                        ImGui.TextColored(new nuVector4(0.8f, 0.5f, 0.5f, 1f), "B"); ImGui.SameLine();
+                        int nb = LevelButtons("brk_" + entry.ModType, brickLvl, Settings.BrickColor);
+                        if (nb != brickLvl)
                         {
-                            Settings.BrickedMods[entry.ModType] = newBrick;
-                            if (newBrick) Settings.GoodMods.Remove(entry.ModType);
+                            if (nb > 0) { Settings.BrickLevels[entry.ModType] = nb; Settings.GoodLevels.Remove(entry.ModType); }
+                            else Settings.BrickLevels.Remove(entry.ModType);
                         }
                         ImGui.SameLine();
-                        bool newGood = GoodPill(entry.ModType, isGood);
-                        if (newGood != isGood)
+                        ImGui.TextColored(new nuVector4(0.5f, 0.8f, 0.5f, 1f), "G"); ImGui.SameLine();
+                        int ng = LevelButtons("good_" + entry.ModType, goodLvl, Settings.GoodColor);
+                        if (ng != goodLvl)
                         {
-                            Settings.GoodMods[entry.ModType] = newGood;
-                            if (newGood) Settings.BrickedMods.Remove(entry.ModType);
+                            if (ng > 0) { Settings.GoodLevels[entry.ModType] = ng; Settings.BrickLevels.Remove(entry.ModType); }
+                            else Settings.GoodLevels.Remove(entry.ModType);
                         }
                     }
                 }
@@ -334,11 +317,25 @@ namespace WaystoneNotify
             Toggle("Use Box style (off = Frame)", Settings.MapBorderStyle);
 
             ImGui.Spacing();
-            ImGui.TextDisabled("Colors");
+            ImGui.TextDisabled("Warning color (enabled, no tier)");
             ImGui.Separator();
             Settings.MapBorderWarnings = ColorEdit("Warning color##wc", Settings.MapBorderWarnings);
-            Settings.Bricked           = ColorEdit("Bricked color##bc", Settings.Bricked);
-            Settings.GoodModBorder     = ColorEdit("Good color##gc",    Settings.GoodModBorder);
+
+            ImGui.Spacing();
+            ImGui.TextDisabled("Brick tiers (1 = lowest .. 4 = highest)");
+            ImGui.Separator();
+            Settings.Brick1 = ColorEdit("Brick 1##b1", Settings.Brick1);
+            Settings.Brick2 = ColorEdit("Brick 2##b2", Settings.Brick2);
+            Settings.Brick3 = ColorEdit("Brick 3##b3", Settings.Brick3);
+            Settings.Brick4 = ColorEdit("Brick 4##b4", Settings.Brick4);
+
+            ImGui.Spacing();
+            ImGui.TextDisabled("Good tiers (1 = lowest .. 4 = highest)");
+            ImGui.Separator();
+            Settings.Good1 = ColorEdit("Good 1##g1", Settings.Good1);
+            Settings.Good2 = ColorEdit("Good 2##g2", Settings.Good2);
+            Settings.Good3 = ColorEdit("Good 3##g3", Settings.Good3);
+            Settings.Good4 = ColorEdit("Good 4##g4", Settings.Good4);
 
             ImGui.Spacing();
             ImGui.TextDisabled("Size");

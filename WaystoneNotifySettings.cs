@@ -32,10 +32,24 @@ namespace WaystoneNotify
         public ToggleNode BoxForMapWarnings     { get; set; } = new(true);
         public ToggleNode BoxForMapBadWarnings  { get; set; } = new(true);
         public ToggleNode BoxForMapGoodMods     { get; set; } = new(true);
-        public Vector4 Bricked                  { get; set; } = new(1f, 0f, 0f, 1f);
         public Vector4 MapBorderWarnings        { get; set; } = new(0f, 0.6f, 1f, 1f);
-        public Vector4 GoodModBorder            { get; set; } = new(0f, 1f, 0f, 1f);
+
+        // Brick severity tiers (1 = lowest, 4 = highest)
+        public Vector4 Brick1 { get; set; } = new(1.00f, 0.95f, 0.20f, 1f); // amarelo
+        public Vector4 Brick2 { get; set; } = new(0.95f, 0.70f, 0.10f, 1f); // amarelo escuro
+        public Vector4 Brick3 { get; set; } = new(1.00f, 0.50f, 0.05f, 1f); // laranja
+        public Vector4 Brick4 { get; set; } = new(1.00f, 0.10f, 0.10f, 1f); // vermelho
+
+        // Good tiers (1 = lowest, 4 = highest)
+        public Vector4 Good1 { get; set; } = new(0.60f, 1.00f, 0.60f, 1f); // verde claro
+        public Vector4 Good2 { get; set; } = new(0.35f, 0.90f, 0.45f, 1f);
+        public Vector4 Good3 { get; set; } = new(0.10f, 0.80f, 0.30f, 1f);
+        public Vector4 Good4 { get; set; } = new(0.00f, 0.65f, 0.15f, 1f); // verde forte
+
         public RangeNode<int> BorderThicknessMap{ get; set; } = new(2, 1, 6);
+
+        public Vector4 BrickColor(int lvl) => lvl switch { 1 => Brick1, 2 => Brick2, 3 => Brick3, _ => Brick4 };
+        public Vector4 GoodColor(int lvl)  => lvl switch { 1 => Good1,  2 => Good2,  3 => Good3,  _ => Good4  };
 
         // Windows
         public ToggleNode ShowBorderInPurchase { get; set; } = new(false);
@@ -46,10 +60,10 @@ namespace WaystoneNotify
         // Profile system
         public TextNode ActiveProfile { get; set; } = new("Default");
 
-        // Mod selection — persisted as flat dictionaries keyed by mod type (RawName substring)
+        // Mod selection — persisted as flat dictionaries keyed by mod type (stat-id substring)
         public Dictionary<string, bool> EnabledMods { get; set; } = new();
-        public Dictionary<string, bool> BrickedMods { get; set; } = new();
-        public Dictionary<string, bool> GoodMods { get; set; } = new();
+        public Dictionary<string, int> BrickLevels { get; set; } = new(); // token -> 1..4
+        public Dictionary<string, int> GoodLevels { get; set; } = new();  // token -> 1..4
         public Dictionary<string, string> CustomModNames { get; set; } = new();
     }
 }

@@ -179,21 +179,30 @@ namespace WaystoneNotify
         }
 
         // ── Borders ───────────────────────────────────────────────────────────
-        private List<string> _cachedEnabledTypes = new();
-        private List<string> _cachedBrickedTypes = new();
-        private List<string> _cachedGoodTypes = new();
-        private int _lastEnabledCount = -1, _lastBrickedCount = -1, _lastGoodCount = -1;
+        private List<string> _cachedWarnTypes = new();                 // enabled, no tier
+        private List<(string token, int lvl)> _cachedBrickLevels = new();
+        private List<(string token, int lvl)> _cachedGoodLevels = new();
+        private int _lastEnabledCount = -1, _lastBrickSig = -1, _lastGoodSig = -1;
 
         private void RefreshBorderCache()
         {
-            int ec = LiveSettings?.EnabledMods?.Count ?? 0;
-            int bc = LiveSettings?.BrickedMods?.Count ?? 0;
-            int gc = LiveSettings?.GoodMods?.Count ?? 0;
-            if (ec == _lastEnabledCount && bc == _lastBrickedCount && gc == _lastGoodCount) return;
-            _cachedEnabledTypes = LiveSettings?.EnabledMods?.Where(kv => kv.Value).Select(kv => kv.Key).ToList() ?? new();
-            _cachedBrickedTypes = LiveSettings?.BrickedMods?.Where(kv => kv.Value).Select(kv => kv.Key).ToList() ?? new();
-            _cachedGoodTypes = LiveSettings?.GoodMods?.Where(kv => kv.Value).Select(kv => kv.Key).ToList() ?? new();
-            _lastEnabledCount = ec; _lastBrickedCount = bc; _lastGoodCount = gc;
+            var en = LiveSettings?.EnabledMods;
+            var br = LiveSettings?.BrickLevels;
+            var gd = LiveSettings?.GoodLevels;
+            int ec = en?.Count ?? 0;
+            int brickSig = (br?.Count ?? 0) * 31 + (br?.Sum(kv => kv.Value) ?? 0);
+            int goodSig  = (gd?.Count ?? 0) * 31 + (gd?.Sum(kv => kv.Value) ?? 0);
+            if (ec == _lastEnabledCount && brickSig == _lastBrickSig && goodSig == _lastGoodSig) return;
+
+            var enabled = en?.Where(kv => kv.Value).Select(kv => kv.Key).ToHashSet() ?? new();
+            _cachedBrickLevels = br?.Where(kv => kv.Value > 0 && enabled.Contains(kv.Key))
+                                    .Select(kv => (kv.Key, kv.Value)).ToList() ?? new();
+            _cachedGoodLevels  = gd?.Where(kv => kv.Value > 0 && enabled.Contains(kv.Key))
+                                    .Select(kv => (kv.Key, kv.Value)).ToList() ?? new();
+            var tiered = _cachedBrickLevels.Select(x => x.token)
+                         .Concat(_cachedGoodLevels.Select(x => x.token)).ToHashSet();
+            _cachedWarnTypes = enabled.Where(t => !tiered.Contains(t)).ToList();
+            _lastEnabledCount = ec; _lastBrickSig = brickSig; _lastGoodSig = goodSig;
         }
 
         // TEMP diagnostic: prints a hovered waystone's mods + stat ids to the ExileCore Debug log (once per item).
@@ -276,16 +285,24 @@ namespace WaystoneNotify
             var mods = item.Item.GetComponent<Mods>()?.ItemMods;
             if (mods == null) return;
 
+            // Highest tier present wins (brick4 > brick1, etc.); brick takes priority over good.
+            int maxBrick = 0, maxGood = 0;
+            bool warn = false;
+            foreach (var m in mods)
+            {
+                foreach (var (token, lvl) in _cachedBrickLevels)
+                    if (lvl > maxBrick && ModHasStat(m, token)) maxBrick = lvl;
+                foreach (var (token, lvl) in _cachedGoodLevels)
+                    if (lvl > maxGood && ModHasStat(m, token)) maxGood = lvl;
+                if (!warn)
+                    foreach (var t in _cachedWarnTypes)
+                        if (ModHasStat(m, t)) { warn = true; break; }
+            }
+
             nuVector4? modColor = null;
-            if (Settings.BoxForMapBadWarnings &&
-                mods.Any(m => _cachedBrickedTypes.Any(t => ModHasStat(m, t))))
-                modColor = Settings.Bricked;
-            if (modColor == null && Settings.BoxForMapGoodMods &&
-                mods.Any(m => _cachedGoodTypes.Any(t => ModHasStat(m, t))))
-                modColor = Settings.GoodModBorder;
-            if (modColor == null && Settings.BoxForMapWarnings &&
-                mods.Any(m => _cachedEnabledTypes.Any(t => ModHasStat(m, t))))
-                modColor = Settings.MapBorderWarnings;
+            if (maxBrick > 0 && Settings.BoxForMapBadWarnings)      modColor = Settings.BrickColor(maxBrick);
+            else if (maxGood > 0 && Settings.BoxForMapGoodMods)     modColor = Settings.GoodColor(maxGood);
+            else if (warn && Settings.BoxForMapWarnings)            modColor = Settings.MapBorderWarnings;
 
             if (!modColor.HasValue) return;
 
