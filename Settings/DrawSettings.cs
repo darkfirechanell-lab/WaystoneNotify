@@ -338,6 +338,14 @@ namespace WaystoneNotify
             Settings.Good4 = ColorEdit("Good 4##g4", Settings.Good4);
 
             ImGui.Spacing();
+            ImGui.TextDisabled("Full map highlight (overrides everything)");
+            ImGui.Separator();
+            Toggle("Highlight full maps", Settings.HighlightFullMap);
+            HelpMarker("A waystone with at least this many mods is drawn in the color below, regardless of its mods.");
+            Settings.FullMapModCount.Value = IntSlider("Min mods##fmc", Settings.FullMapModCount);
+            Settings.FullMapColor = ColorEdit("Full map color##fmcol", Settings.FullMapColor);
+
+            ImGui.Spacing();
             ImGui.TextDisabled("Size");
             ImGui.Separator();
             Settings.BorderDeflation.Value    = IntSlider("Deflation##bd", Settings.BorderDeflation);

@@ -300,7 +300,9 @@ namespace WaystoneNotify
             }
 
             nuVector4? modColor = null;
-            if (maxBrick > 0 && Settings.BoxForMapBadWarnings)      modColor = Settings.BrickColor(maxBrick);
+            if (Settings.HighlightFullMap && mods.Count >= Settings.FullMapModCount)
+                modColor = Settings.FullMapColor;                  // full map wins regardless of mods
+            else if (maxBrick > 0 && Settings.BoxForMapBadWarnings) modColor = Settings.BrickColor(maxBrick);
             else if (maxGood > 0 && Settings.BoxForMapGoodMods)     modColor = Settings.GoodColor(maxGood);
             else if (warn && Settings.BoxForMapWarnings)            modColor = Settings.MapBorderWarnings;
 

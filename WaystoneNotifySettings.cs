@@ -40,11 +40,18 @@ namespace WaystoneNotify
         public Vector4 Brick3 { get; set; } = new(1.00f, 0.50f, 0.05f, 1f); // laranja
         public Vector4 Brick4 { get; set; } = new(1.00f, 0.10f, 0.10f, 1f); // vermelho
 
-        // Good tiers (1 = lowest, 4 = highest)
-        public Vector4 Good1 { get; set; } = new(0.60f, 1.00f, 0.60f, 1f); // verde claro
-        public Vector4 Good2 { get; set; } = new(0.35f, 0.90f, 0.45f, 1f);
-        public Vector4 Good3 { get; set; } = new(0.10f, 0.80f, 0.30f, 1f);
-        public Vector4 Good4 { get; set; } = new(0.00f, 0.65f, 0.15f, 1f); // verde forte
+        // Good tiers (1 = lowest, 4 = highest). Hues vary so tiers are easy to tell apart;
+        // pure green is reserved for the full-map highlight below.
+        public Vector4 Good1 { get; set; } = new(0.00f, 1.00f, 1.00f, 1f); // ciano
+        public Vector4 Good2 { get; set; } = new(0.00f, 0.60f, 1.00f, 1f); // azul claro
+        public Vector4 Good3 { get; set; } = new(0.25f, 0.35f, 1.00f, 1f); // azul
+        public Vector4 Good4 { get; set; } = new(0.65f, 0.30f, 1.00f, 1f); // violeta
+
+        // Full-map highlight: a waystone with >= FullMapModCount mods is drawn in FullMapColor,
+        // regardless of its mods (highest priority).
+        public ToggleNode HighlightFullMap { get; set; } = new(true);
+        public RangeNode<int> FullMapModCount { get; set; } = new(8, 1, 12);
+        public Vector4 FullMapColor { get; set; } = new(0f, 1f, 0f, 1f); // verde puro
 
         public RangeNode<int> BorderThicknessMap{ get; set; } = new(2, 1, 6);
 
