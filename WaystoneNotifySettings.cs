@@ -42,10 +42,10 @@ namespace WaystoneNotify
 
         // Good tiers (1 = lowest, 4 = highest). Hues vary so tiers are easy to tell apart;
         // pure green is reserved for the full-map highlight below.
-        public Vector4 Good1 { get; set; } = new(0.00f, 1.00f, 1.00f, 1f); // ciano
-        public Vector4 Good2 { get; set; } = new(0.00f, 0.60f, 1.00f, 1f); // azul claro
-        public Vector4 Good3 { get; set; } = new(0.25f, 0.35f, 1.00f, 1f); // azul
-        public Vector4 Good4 { get; set; } = new(0.65f, 0.30f, 1.00f, 1f); // violeta
+        public Vector4 Good1 { get; set; } = new(0.800f, 1.000f, 1.000f, 1f); // #ccffff
+        public Vector4 Good2 { get; set; } = new(0.686f, 1.000f, 1.000f, 1f); // #afffff
+        public Vector4 Good3 { get; set; } = new(0.431f, 0.812f, 0.812f, 1f); // #6ecfcf
+        public Vector4 Good4 { get; set; } = new(0.157f, 0.569f, 0.573f, 1f); // #289192
 
         // Full-map highlight: a waystone with >= FullMapModCount mods is drawn in FullMapColor,
         // regardless of its mods (highest priority).
