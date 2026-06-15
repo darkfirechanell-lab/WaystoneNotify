@@ -15,6 +15,12 @@ namespace WaystoneNotify
         public Dictionary<string, int> BrickLevels { get; set; } = new();
         public Dictionary<string, int> GoodLevels  { get; set; } = new();
         public Dictionary<string, string> CustomNames { get; set; } = new();
+
+        // Tablet selection (same profile file covers both item kinds)
+        public Dictionary<string, bool> TabletMods       { get; set; } = new();
+        public Dictionary<string, int> TabletBrickLevels { get; set; } = new();
+        public Dictionary<string, int> TabletGoodLevels  { get; set; } = new();
+        public Dictionary<string, string> TabletCustomNames { get; set; } = new();
     }
 
     public class ProfileManager
@@ -72,6 +78,10 @@ namespace WaystoneNotify
             p.BrickLevels = new Dictionary<string, int>(s.BrickLevels);
             p.GoodLevels  = new Dictionary<string, int>(s.GoodLevels);
             p.CustomNames = new Dictionary<string, string>(s.CustomModNames);
+            p.TabletMods       = new Dictionary<string, bool>(s.TabletEnabledMods);
+            p.TabletBrickLevels = new Dictionary<string, int>(s.TabletBrickLevels);
+            p.TabletGoodLevels  = new Dictionary<string, int>(s.TabletGoodLevels);
+            p.TabletCustomNames = new Dictionary<string, string>(s.TabletCustomModNames);
             Profiles[name] = p;
             Save();
         }
@@ -83,6 +93,10 @@ namespace WaystoneNotify
             s.BrickLevels    = new Dictionary<string, int>(p.BrickLevels ?? new());
             s.GoodLevels     = new Dictionary<string, int>(p.GoodLevels  ?? new());
             s.CustomModNames = new Dictionary<string, string>(p.CustomNames ?? new());
+            s.TabletEnabledMods    = new Dictionary<string, bool>(p.TabletMods ?? new());
+            s.TabletBrickLevels    = new Dictionary<string, int>(p.TabletBrickLevels ?? new());
+            s.TabletGoodLevels     = new Dictionary<string, int>(p.TabletGoodLevels  ?? new());
+            s.TabletCustomModNames = new Dictionary<string, string>(p.TabletCustomNames ?? new());
             return true;
         }
 

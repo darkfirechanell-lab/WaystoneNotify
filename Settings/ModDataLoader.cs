@@ -57,23 +57,29 @@ namespace WaystoneNotify
         }
 
         public static List<MapModEntry> Load(string directoryFullName)
+            => LoadFile(directoryFullName, "waystone_mods_data.json", "Waystone");
+
+        public static List<MapModEntry> LoadTablets(string directoryFullName)
+            => LoadFile(directoryFullName, "tablet_mods_data.json", "Tablet");
+
+        private static List<MapModEntry> LoadFile(string directoryFullName, string fileName, string label)
         {
             try
             {
-                var path = Path.Combine(directoryFullName, "data", "waystone_mods_data.json");
+                var path = Path.Combine(directoryFullName, "data", fileName);
                 if (!File.Exists(path))
                 {
-                    DebugWindow.LogError($"[Waystone] waystone_mods_data.json not found at {path}");
+                    DebugWindow.LogError($"[{label}] {fileName} not found at {path}");
                     return new List<MapModEntry>();
                 }
                 var result = JsonConvert.DeserializeObject<List<MapModEntry>>(File.ReadAllText(path))
                              ?? new List<MapModEntry>();
-                DebugWindow.LogMsg($"[Waystone] Loaded {result.Count} mods from {path}");
+                DebugWindow.LogMsg($"[{label}] Loaded {result.Count} mods from {path}");
                 return result;
             }
             catch (System.Exception ex)
             {
-                DebugWindow.LogError($"[Waystone] Failed to load waystone_mods_data.json: {ex.Message}");
+                DebugWindow.LogError($"[{label}] Failed to load {fileName}: {ex.Message}");
                 return new List<MapModEntry>();
             }
         }

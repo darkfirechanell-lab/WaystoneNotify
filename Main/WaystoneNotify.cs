@@ -27,7 +27,8 @@ namespace WaystoneNotify
         // Profile system
         public static ProfileManager _profileManager;
         public static WaystoneNotifySettings LiveSettings;
-        public static List<MapModEntry> _modEntries = new();
+        public static List<MapModEntry> _modEntries = new();      // waystone mods
+        public static List<MapModEntry> _tabletEntries = new();   // tablet mods
 
         public override bool Initialise()
         {
@@ -42,6 +43,7 @@ namespace WaystoneNotify
 
             LiveSettings = Settings;
             _modEntries = ModDataLoader.Load(DirectoryFullName);
+            _tabletEntries = ModDataLoader.LoadTablets(DirectoryFullName);
             _profileManager = new ProfileManager(ConfigDirectory);
             var activeProf = Settings.ActiveProfile.Value;
             if (!_profileManager.Profiles.ContainsKey(activeProf)) activeProf = "Default";
@@ -52,13 +54,23 @@ namespace WaystoneNotify
         }
 
         // ── Item gathering ───────────────────────────────────────────────────
-        private static bool IsWaystone(Entity entity)
+        public enum ItemKind { None, Waystone, Tablet }
+
+        // Classifies a hovered/inventory entity once; everything downstream branches on this.
+        public static ItemKind GetItemKind(Entity entity)
         {
-            if (entity == null || entity.Address == 0 || !entity.IsValid) return false;
-            if (!entity.HasComponent<Map>()) return false;
+            if (entity == null || entity.Address == 0 || !entity.IsValid) return ItemKind.None;
             var baseType = gameController.Files.BaseItemTypes.Translate(entity.Path);
-            return baseType?.ClassName == "Map";
+            var cls = baseType?.ClassName;
+            // Waystones own a Map component (carries Tier); tablets don't.
+            if (cls == "Map" && entity.HasComponent<Map>()) return ItemKind.Waystone;
+            if (cls == "TowerAugmentation") return ItemKind.Tablet;
+            return ItemKind.None;
         }
+
+        private static bool IsWaystone(Entity entity) => GetItemKind(entity) == ItemKind.Waystone;
+        private static bool IsTablet(Entity entity)   => GetItemKind(entity) == ItemKind.Tablet;
+        private static bool IsTracked(Entity entity)  => GetItemKind(entity) != ItemKind.None;
 
         private List<NormalInventoryItem> GetInventoryItems()
         {
@@ -67,7 +79,7 @@ namespace WaystoneNotify
             {
                 var items = ingameState.IngameUi.InventoryPanel[InventoryIndex.PlayerInventory].VisibleInventoryItems;
                 if (items != null)
-                    result.AddRange(items.Where(i => i?.Item != null && IsWaystone(i.Item)));
+                    result.AddRange(items.Where(i => i?.Item != null && IsTracked(i.Item)));
             }
             return result;
         }
@@ -81,7 +93,7 @@ namespace WaystoneNotify
                 stashIndex = ingameState.IngameUi.StashElement.IndexVisibleStash;
                 var items = ingameState.IngameUi.StashElement.VisibleStash.VisibleInventoryItems;
                 if (items != null)
-                    result.AddRange(items.Where(i => i?.Item != null && IsWaystone(i.Item)));
+                    result.AddRange(items.Where(i => i?.Item != null && IsTracked(i.Item)));
             }
             return (stashIndex, result);
         }
@@ -96,7 +108,7 @@ namespace WaystoneNotify
                 {
                     var items = pw.TabContainer?.VisibleStash?.VisibleInventoryItems;
                     if (items != null)
-                        result.AddRange(items.Where(i => i?.Item != null && IsWaystone(i.Item)));
+                        result.AddRange(items.Where(i => i?.Item != null && IsTracked(i.Item)));
                 }
 
                 var pwh = ingameState.IngameUi.PurchaseWindowHideout;
@@ -104,7 +116,7 @@ namespace WaystoneNotify
                 {
                     var items = pwh.TabContainer?.VisibleStash?.VisibleInventoryItems;
                     if (items != null)
-                        result.AddRange(items.Where(i => i?.Item != null && IsWaystone(i.Item)));
+                        result.AddRange(items.Where(i => i?.Item != null && IsTracked(i.Item)));
                 }
             }
             catch { }
@@ -115,12 +127,13 @@ namespace WaystoneNotify
         private void RenderItem(NormalInventoryItem item)
         {
             var entity = item?.Item;
-            if (!IsWaystone(entity)) return;
+            var kind = GetItemKind(entity);
+            if (kind == ItemKind.None) return;
 
             var rarity = entity.GetComponent<Mods>()?.ItemRarity;
-            if (rarity == null || rarity == ItemRarity.Normal) return; // normal waystones have no mods
+            if (rarity == null || rarity == ItemRarity.Normal) return; // normal items have no mods
 
-            var details = new ItemDetails(entity);
+            var details = new ItemDetails(entity, kind);
 
             if (!Settings.AlwaysShowTooltip && details.ActiveWarnings.Count == 0) return;
 
@@ -178,40 +191,59 @@ namespace WaystoneNotify
             ImGui.PopStyleColor();
         }
 
-        // ── Borders ───────────────────────────────────────────────────────────
-        private List<string> _cachedWarnTypes = new();                 // enabled, no tier
-        private List<(string token, int lvl)> _cachedBrickLevels = new();
-        private List<(string token, int lvl)> _cachedGoodLevels = new();
-        private int _lastEnabledCount = -1, _lastBrickSig = -1, _lastGoodSig = -1;
-
-        private void RefreshBorderCache()
+        // ── Config resolution by kind ────────────────────────────────────────
+        // Returns the four mod dictionaries that drive both tooltip and borders, picked by item kind.
+        public static (Dictionary<string, bool> enabled,
+                       Dictionary<string, int> brick,
+                       Dictionary<string, int> good,
+                       Dictionary<string, string> custom,
+                       List<MapModEntry> entries) ConfigFor(ItemKind kind)
         {
-            var en = LiveSettings?.EnabledMods;
-            var br = LiveSettings?.BrickLevels;
-            var gd = LiveSettings?.GoodLevels;
+            var s = LiveSettings;
+            if (kind == ItemKind.Tablet)
+                return (s?.TabletEnabledMods, s?.TabletBrickLevels, s?.TabletGoodLevels, s?.TabletCustomModNames, _tabletEntries);
+            return (s?.EnabledMods, s?.BrickLevels, s?.GoodLevels, s?.CustomModNames, _modEntries);
+        }
+
+        // ── Borders ───────────────────────────────────────────────────────────
+        // Per-kind border caches: index 0 = Waystone, 1 = Tablet.
+        private sealed class BorderCache
+        {
+            public List<string> WarnTypes = new();                    // enabled, no tier
+            public List<(string token, int lvl)> BrickLevels = new();
+            public List<(string token, int lvl)> GoodLevels = new();
+            public int LastEnabledCount = -1, LastBrickSig = -1, LastGoodSig = -1;
+        }
+        private readonly BorderCache[] _borderCaches = { new(), new() };
+
+        private BorderCache RefreshBorderCache(ItemKind kind)
+        {
+            var c = _borderCaches[kind == ItemKind.Tablet ? 1 : 0];
+            var (en, br, gd, _, _) = ConfigFor(kind);
             int ec = en?.Count ?? 0;
             int brickSig = (br?.Count ?? 0) * 31 + (br?.Sum(kv => kv.Value) ?? 0);
             int goodSig  = (gd?.Count ?? 0) * 31 + (gd?.Sum(kv => kv.Value) ?? 0);
-            if (ec == _lastEnabledCount && brickSig == _lastBrickSig && goodSig == _lastGoodSig) return;
+            if (ec == c.LastEnabledCount && brickSig == c.LastBrickSig && goodSig == c.LastGoodSig) return c;
 
             var enabled = en?.Where(kv => kv.Value).Select(kv => kv.Key).ToHashSet() ?? new();
-            _cachedBrickLevels = br?.Where(kv => kv.Value > 0 && enabled.Contains(kv.Key))
+            c.BrickLevels = br?.Where(kv => kv.Value > 0 && enabled.Contains(kv.Key))
                                     .Select(kv => (kv.Key, kv.Value)).ToList() ?? new();
-            _cachedGoodLevels  = gd?.Where(kv => kv.Value > 0 && enabled.Contains(kv.Key))
+            c.GoodLevels  = gd?.Where(kv => kv.Value > 0 && enabled.Contains(kv.Key))
                                     .Select(kv => (kv.Key, kv.Value)).ToList() ?? new();
-            var tiered = _cachedBrickLevels.Select(x => x.token)
-                         .Concat(_cachedGoodLevels.Select(x => x.token)).ToHashSet();
-            _cachedWarnTypes = enabled.Where(t => !tiered.Contains(t)).ToList();
-            _lastEnabledCount = ec; _lastBrickSig = brickSig; _lastGoodSig = goodSig;
+            var tiered = c.BrickLevels.Select(x => x.token)
+                         .Concat(c.GoodLevels.Select(x => x.token)).ToHashSet();
+            c.WarnTypes = enabled.Where(t => !tiered.Contains(t)).ToList();
+            c.LastEnabledCount = ec; c.LastBrickSig = brickSig; c.LastGoodSig = goodSig;
+            return c;
         }
 
-        // TEMP diagnostic: prints a hovered waystone's mods + stat ids to the ExileCore Debug log (once per item).
+        // TEMP diagnostic: prints a hovered item's mods + stat ids to the ExileCore Debug log (once per item).
         private long _lastDbgAddr;
         private void LogWaystoneDebug(Entity entity)
         {
             try
             {
-                if (!IsWaystone(entity)) return;
+                if (!IsTracked(entity)) return;
                 if (entity.Address == _lastDbgAddr) return;
                 _lastDbgAddr = entity.Address;
 
@@ -274,8 +306,9 @@ namespace WaystoneNotify
 
         private void DrawWaystoneBorders(NormalInventoryItem item)
         {
-            if (!IsWaystone(item?.Item)) return;
-            RefreshBorderCache();
+            var kind = GetItemKind(item?.Item);
+            if (kind == ItemKind.None) return;
+            var cache = RefreshBorderCache(kind);
 
             var rect = item.GetClientRect();
             var dw = (int)(rect.Width * (Settings.BorderDeflation / 100.0));
@@ -290,12 +323,12 @@ namespace WaystoneNotify
             bool warn = false;
             foreach (var m in mods)
             {
-                foreach (var (token, lvl) in _cachedBrickLevels)
+                foreach (var (token, lvl) in cache.BrickLevels)
                     if (lvl > maxBrick && ModHasStat(m, token)) maxBrick = lvl;
-                foreach (var (token, lvl) in _cachedGoodLevels)
+                foreach (var (token, lvl) in cache.GoodLevels)
                     if (lvl > maxGood && ModHasStat(m, token)) maxGood = lvl;
                 if (!warn)
-                    foreach (var t in _cachedWarnTypes)
+                    foreach (var t in cache.WarnTypes)
                         if (ModHasStat(m, t)) { warn = true; break; }
             }
 

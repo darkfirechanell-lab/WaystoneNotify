@@ -29,6 +29,7 @@ namespace WaystoneNotify
         public class ItemDetails
         {
             public Entity Entity { get; }
+            public ItemKind Kind { get; }
             public List<StyledText> ActiveWarnings { get; } = new();
             public nuVector4 ItemColor { get; set; }
             public string MapName { get; set; }
@@ -39,9 +40,10 @@ namespace WaystoneNotify
             public int PackSize { get; set; }
             public bool Bricked { get; set; }
 
-            public ItemDetails(Entity entity)
+            public ItemDetails(Entity entity, ItemKind kind)
             {
                 Entity = entity;
+                Kind = kind;
                 Update();
             }
 
@@ -50,10 +52,10 @@ namespace WaystoneNotify
                 ActiveWarnings.Clear();
 
                 var baseItem = gameController.Files.BaseItemTypes.Translate(Entity.Path);
-                var itemName = baseItem?.BaseName ?? "Waystone";
+                var itemName = baseItem?.BaseName ?? (Kind == ItemKind.Tablet ? "Tablet" : "Waystone");
 
-                var map = Entity.GetComponent<Map>();
-                Tier = map?.Tier ?? -1;
+                // Only waystones carry a Map/Tier; tablets have no tier.
+                Tier = Kind == ItemKind.Waystone ? (Entity.GetComponent<Map>()?.Tier ?? -1) : -1;
 
                 var mods = Entity.GetComponent<Mods>();
                 if (mods == null) { MapName = itemName; return; }
@@ -69,32 +71,35 @@ namespace WaystoneNotify
                 if (itemMods == null) return;
                 ModCount = itemMods.Count;
 
+                // Pick the dictionaries + dataset that match this item kind.
+                var (enabledMods, brickLevels, goodLevels, customNames, entries) = ConfigFor(Kind);
+
                 foreach (var mod in itemMods)
                 {
-                    // Reward numbers read by exact stat id
+                    // Reward numbers read by exact stat id (shared tokens between waystones and tablets)
                     if (Quantity == 0) Quantity = ModStatValue(mod, "map_item_drop_quantity_+%");
                     if (Rarity == 0)   Rarity   = ModStatValue(mod, "map_item_drop_rarity_+%");
                     if (PackSize == 0) PackSize  = ModStatValue(mod, "map_pack_size_+%");
 
-                    if (LiveSettings?.EnabledMods == null || _modEntries == null) continue;
+                    if (enabledMods == null || entries == null) continue;
 
-                    foreach (var entry in _modEntries)
+                    foreach (var entry in entries)
                     {
-                        if (!LiveSettings.EnabledMods.TryGetValue(entry.ModType, out var enabled) || !enabled)
+                        if (!enabledMods.TryGetValue(entry.ModType, out var enabled) || !enabled)
                             continue;
                         if (!ModHasStat(mod, entry.ModType))
                             continue;
 
-                        var display = LiveSettings.CustomModNames != null
-                                      && LiveSettings.CustomModNames.TryGetValue(entry.ModType, out var custom)
+                        var display = customNames != null
+                                      && customNames.TryGetValue(entry.ModType, out var custom)
                                       && !string.IsNullOrWhiteSpace(custom)
                             ? custom : entry.Name;
 
                         if (ActiveWarnings.Any(w => w.Text == display)) continue;
 
-                        int brickLvl = LiveSettings.BrickLevels.TryGetValue(entry.ModType, out var br) ? br : 0;
-                        int goodLvl  = brickLvl == 0 && LiveSettings.GoodLevels != null
-                                       && LiveSettings.GoodLevels.TryGetValue(entry.ModType, out var gd) ? gd : 0;
+                        int brickLvl = brickLevels != null && brickLevels.TryGetValue(entry.ModType, out var br) ? br : 0;
+                        int goodLvl  = brickLvl == 0 && goodLevels != null
+                                       && goodLevels.TryGetValue(entry.ModType, out var gd) ? gd : 0;
                         bool isBricked = brickLvl > 0;
                         if (isBricked) Bricked = true;
 

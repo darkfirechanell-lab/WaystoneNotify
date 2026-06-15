@@ -68,9 +68,16 @@ namespace WaystoneNotify
         public TextNode ActiveProfile { get; set; } = new("Default");
 
         // Mod selection — persisted as flat dictionaries keyed by mod type (stat-id substring)
+        // Waystone set
         public Dictionary<string, bool> EnabledMods { get; set; } = new();
         public Dictionary<string, int> BrickLevels { get; set; } = new(); // token -> 1..4
         public Dictionary<string, int> GoodLevels { get; set; } = new();  // token -> 1..4
         public Dictionary<string, string> CustomModNames { get; set; } = new();
+
+        // Tablet set (independent selection; shares the same Brick/Good colors)
+        public Dictionary<string, bool> TabletEnabledMods { get; set; } = new();
+        public Dictionary<string, int> TabletBrickLevels { get; set; } = new();
+        public Dictionary<string, int> TabletGoodLevels { get; set; } = new();
+        public Dictionary<string, string> TabletCustomModNames { get; set; } = new();
     }
 }

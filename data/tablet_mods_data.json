@@ -1,0 +1,11 @@
+[
+  { "Mod type": "map_item_drop_quantity_+%", "Name": "Item Quantity",  "Effect": "increased Quantity of Items found in Areas in range", "Group": "Reward" },
+  { "Mod type": "map_item_drop_rarity_+%",   "Name": "Item Rarity",    "Effect": "increased Rarity of Items found in Areas in range",   "Group": "Reward" },
+  { "Mod type": "map_pack_size_+%",          "Name": "Pack Size",      "Effect": "increased Pack Size in Areas in range",              "Group": "Reward" },
+
+  { "Mod type": "map_breach",       "Name": "Breach",       "Effect": "Areas in range contain Breaches",       "Group": "Content" },
+  { "Mod type": "map_expedition",   "Name": "Expedition",   "Effect": "Areas in range contain Expedition",     "Group": "Content" },
+  { "Mod type": "map_ritual",       "Name": "Ritual",       "Effect": "Areas in range contain Ritual",         "Group": "Content" },
+  { "Mod type": "map_delirium",     "Name": "Delirium",     "Effect": "Areas in range contain Delirium",       "Group": "Content" },
+  { "Mod type": "map_legion",       "Name": "Legion",       "Effect": "Areas in range contain Legion",         "Group": "Content" }
+]

@@ -14,10 +14,12 @@ namespace WaystoneNotify
     public partial class WaystoneNotify : BaseSettingsPlugin<WaystoneNotifySettings>
     {
         private string _modSearch = "";
+        private string _tabletSearch = "";
         private bool _confirmDelete = false;
         private string _deleteTarget = "";
         private string _newProfName = "";
-        private readonly Dictionary<string, bool> _groupOpen = new();
+        private readonly Dictionary<string, bool> _groupOpen = new();        // waystone tab
+        private readonly Dictionary<string, bool> _tabletGroupOpen = new();  // tablet tab
         public static List<string> hoverMods = new();
 
         private static void HelpMarker(string desc)
@@ -102,11 +104,13 @@ namespace WaystoneNotify
             int warnCount  = Settings.EnabledMods.Count(kv => kv.Value);
             int brickCount = Settings.BrickLevels.Count(kv => kv.Value > 0);
             int goodCount  = Settings.GoodLevels.Count(kv => kv.Value > 0);
-            ImGui.TextDisabled($"{warnCount} warnings   {brickCount} bricked   {goodCount} good   |   {Settings.ActiveProfile.Value}");
+            int tWarn = Settings.TabletEnabledMods.Count(kv => kv.Value);
+            ImGui.TextDisabled($"Waystone: {warnCount} on  {brickCount} brick  {goodCount} good   |   Tablet: {tWarn} on   |   {Settings.ActiveProfile.Value}");
             ImGui.Separator();
 
             if (!ImGui.BeginTabBar("##waystone_tabs")) return;
-            if (ImGui.BeginTabItem("Mods"))     { TabMods();     ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Waystone Mods")) { TabMods(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Tablet Mods"))   { TabTabletMods(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Profiles")) { TabProfiles(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Border"))   { TabBorder();   ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Display"))  { TabDisplay();  ImGui.EndTabItem(); }
@@ -114,55 +118,71 @@ namespace WaystoneNotify
             ImGui.EndTabBar();
         }
 
-        private void TabMods()
+        private void TabMods() =>
+            DrawModList("ws", _modEntries, "waystone_mods_data.json",
+                ref _modSearch, _groupOpen,
+                Settings.EnabledMods, Settings.BrickLevels, Settings.GoodLevels);
+
+        private void TabTabletMods() =>
+            DrawModList("tab", _tabletEntries, "tablet_mods_data.json",
+                ref _tabletSearch, _tabletGroupOpen,
+                Settings.TabletEnabledMods, Settings.TabletBrickLevels, Settings.TabletGoodLevels);
+
+        // Shared mod-picker UI; the only differences between waystone/tablet tabs are which
+        // dataset + dictionaries (+ ImGui id namespace) get passed in.
+        private void DrawModList(string idns, List<MapModEntry> entries, string fileName,
+            ref string search, Dictionary<string, bool> groupOpen,
+            Dictionary<string, bool> enabledMods,
+            Dictionary<string, int> brickLevels, Dictionary<string, int> goodLevels)
         {
-            if (_modEntries == null || _modEntries.Count == 0)
+            if (entries == null || entries.Count == 0)
             {
-                ImGui.TextColored(new nuVector4(1f, 0.4f, 0.1f, 1f), "waystone_mods_data.json not loaded.");
+                ImGui.TextColored(new nuVector4(1f, 0.4f, 0.1f, 1f), $"{fileName} not loaded (empty or missing).");
+                ImGui.TextDisabled("Use the Debug tab to dump hovered item mods, then add their tokens to the data file.");
                 return;
             }
 
             ImGui.Spacing();
             ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - 60f);
-            ImGui.InputTextWithHint("##ms", "Search mods...", ref _modSearch, 128);
+            ImGui.InputTextWithHint($"##ms_{idns}", "Search mods...", ref search, 128);
             ImGui.SameLine();
-            if (ImGui.Button("Clear")) _modSearch = "";
+            if (ImGui.Button($"Clear##{idns}")) search = "";
             ImGui.Spacing();
 
-            var search = _modSearch.Trim().ToLowerInvariant();
-            var grouped = _modEntries
-                .Where(e => string.IsNullOrEmpty(search)
-                    || e.Name.ToLowerInvariant().Contains(search)
-                    || e.Effect.ToLowerInvariant().Contains(search)
-                    || e.ModType.ToLowerInvariant().Contains(search))
+            var q = search.Trim().ToLowerInvariant();
+            var grouped = entries
+                .Where(e => string.IsNullOrEmpty(q)
+                    || e.Name.ToLowerInvariant().Contains(q)
+                    || e.Effect.ToLowerInvariant().Contains(q)
+                    || e.ModType.ToLowerInvariant().Contains(q))
                 .GroupBy(e => ModDataLoader.GetGroup(e))
                 .OrderBy(g => g.Key == "Other" ? "zzz" : g.Key);
 
             foreach (var group in grouped)
             {
-                int activeInGroup = group.Count(e => Settings.EnabledMods.TryGetValue(e.ModType, out var v) && v);
+                int activeInGroup = group.Count(e => enabledMods.TryGetValue(e.ModType, out var v) && v);
                 string headerLabel = activeInGroup > 0
-                    ? $"{group.Key}  ({activeInGroup} active)##grp_{group.Key}"
-                    : $"{group.Key}##grp_{group.Key}";
+                    ? $"{group.Key}  ({activeInGroup} active)##grp_{idns}_{group.Key}"
+                    : $"{group.Key}##grp_{idns}_{group.Key}";
 
-                if (!_groupOpen.ContainsKey(group.Key)) _groupOpen[group.Key] = false;
-                bool open = _groupOpen[group.Key];
+                if (!groupOpen.ContainsKey(group.Key)) groupOpen[group.Key] = false;
+                bool open = groupOpen[group.Key];
 
                 ImGui.PushStyleColor(ImGuiCol.Button,        new nuVector4(0.15f, 0.15f, 0.18f, 1f));
                 ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new nuVector4(0.20f, 0.20f, 0.25f, 1f));
                 ImGui.PushStyleColor(ImGuiCol.ButtonActive,  new nuVector4(0.12f, 0.12f, 0.15f, 1f));
                 ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, new nuVector2(0f, 0.5f));
                 if (ImGui.Button((open ? "v " : "> ") + headerLabel, new nuVector2(ImGui.GetContentRegionAvail().X, 0)))
-                    _groupOpen[group.Key] = !open;
+                    groupOpen[group.Key] = !open;
                 ImGui.PopStyleVar();
                 ImGui.PopStyleColor(3);
                 if (!open) continue;
 
                 foreach (var entry in group)
                 {
-                    bool isEnabled = Settings.EnabledMods.TryGetValue(entry.ModType, out var en) && en;
-                    int brickLvl = isEnabled && Settings.BrickLevels.TryGetValue(entry.ModType, out var bl) ? bl : 0;
-                    int goodLvl  = isEnabled && Settings.GoodLevels.TryGetValue(entry.ModType, out var gl) ? gl : 0;
+                    bool isEnabled = enabledMods.TryGetValue(entry.ModType, out var en) && en;
+                    int brickLvl = isEnabled && brickLevels.TryGetValue(entry.ModType, out var bl) ? bl : 0;
+                    int goodLvl  = isEnabled && goodLevels.TryGetValue(entry.ModType, out var gl) ? gl : 0;
                     bool isBricked = brickLvl > 0;
                     bool isGood    = goodLvl > 0;
 
@@ -176,7 +196,7 @@ namespace WaystoneNotify
                     float selectW = isEnabled ? Math.Max(60f, availW - 250f) : availW;
 
                     ImGui.SetNextItemAllowOverlap();
-                    bool rowClicked = ImGui.Selectable($"##sel_{entry.ModType}", isEnabled,
+                    bool rowClicked = ImGui.Selectable($"##sel_{idns}_{entry.ModType}", isEnabled,
                         ImGuiSelectableFlags.DontClosePopups, new nuVector2(selectW, rowH));
 
                     if (isEnabled) ImGui.PopStyleColor();
@@ -185,11 +205,11 @@ namespace WaystoneNotify
                     {
                         if (isEnabled)
                         {
-                            Settings.EnabledMods[entry.ModType] = false;
-                            Settings.BrickLevels.Remove(entry.ModType);
-                            Settings.GoodLevels.Remove(entry.ModType);
+                            enabledMods[entry.ModType] = false;
+                            brickLevels.Remove(entry.ModType);
+                            goodLevels.Remove(entry.ModType);
                         }
-                        else Settings.EnabledMods[entry.ModType] = true;
+                        else enabledMods[entry.ModType] = true;
                     }
 
                     var selMin = ImGui.GetItemRectMin();
@@ -208,19 +228,19 @@ namespace WaystoneNotify
                         ImGui.SameLine();
                         ImGui.AlignTextToFramePadding();
                         ImGui.TextColored(new nuVector4(0.8f, 0.5f, 0.5f, 1f), "B"); ImGui.SameLine();
-                        int nb = LevelButtons("brk_" + entry.ModType, brickLvl, Settings.BrickColor);
+                        int nb = LevelButtons($"brk_{idns}_" + entry.ModType, brickLvl, Settings.BrickColor);
                         if (nb != brickLvl)
                         {
-                            if (nb > 0) { Settings.BrickLevels[entry.ModType] = nb; Settings.GoodLevels.Remove(entry.ModType); }
-                            else Settings.BrickLevels.Remove(entry.ModType);
+                            if (nb > 0) { brickLevels[entry.ModType] = nb; goodLevels.Remove(entry.ModType); }
+                            else brickLevels.Remove(entry.ModType);
                         }
                         ImGui.SameLine();
                         ImGui.TextColored(new nuVector4(0.5f, 0.8f, 0.5f, 1f), "G"); ImGui.SameLine();
-                        int ng = LevelButtons("good_" + entry.ModType, goodLvl, Settings.GoodColor);
+                        int ng = LevelButtons($"good_{idns}_" + entry.ModType, goodLvl, Settings.GoodColor);
                         if (ng != goodLvl)
                         {
-                            if (ng > 0) { Settings.GoodLevels[entry.ModType] = ng; Settings.BrickLevels.Remove(entry.ModType); }
-                            else Settings.GoodLevels.Remove(entry.ModType);
+                            if (ng > 0) { goodLevels[entry.ModType] = ng; brickLevels.Remove(entry.ModType); }
+                            else goodLevels.Remove(entry.ModType);
                         }
                     }
                 }
